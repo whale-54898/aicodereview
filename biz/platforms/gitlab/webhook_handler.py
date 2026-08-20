@@ -6,12 +6,14 @@ import fnmatch
 import requests
 
 import warnings
-from urllib3.exceptions import HeaderParsingWarning, InsecureRequestWarning
+from urllib3.exceptions import InsecureRequestWarning
 from biz.utils.log import logger
 
 
-warnings.filterwarnings("ignore", category=HeaderParsingWarning)
+# urllib3 2.x已经移除HeaderParsingWarning；只关闭SSL自签名警告
 warnings.filterwarnings("ignore", category=InsecureRequestWarning)
+# 全局过滤urllib3所有关于http头解析相关警告（兼容urllib3 1.x /2.x）
+warnings.filterwarnings("ignore", message=".*Header.*parsing.*")
 
 def filter_changes(changes: list):
     '''
