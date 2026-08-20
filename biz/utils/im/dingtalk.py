@@ -104,3 +104,35 @@ class DingTalkNotifier:
                 logger.error(f"钉钉消息发送失败! webhook_url:{post_url},errmsg:{response_data.get('errmsg')}")
         except Exception as e:
             logger.error(f"钉钉消息发送失败! ", e)
+
+    def send(self, entity, note_web_url=None, project_name=None, url_slug=None, webhook_data=None):
+        """发送钉钉ActionCard单按钮卡片，优先跳转gitlab评论note链接"""
+        if not self.enabled:
+            logger.info("钉钉推送未启用")
+            return
+        try:
+            post_url = self._get_webhook_url(project_name=project_name, url_slug=url_slug)
+            # 优先使用gitlab评论note地址；获取不到就降级使用entity自带url(MR/commit页面)
+            jump_url = note_web_url if note_web_url else getattr(entity, "url", "")
+            action_card = {
+                "msgtype": "actionCard",
+                "actionCard": {
+                    "title": f"【{entity.project_name}】代码评审完成",
+                    "text": f"### 代码评审摘要\n**得分：{entity.score if hasattr(entity,'score') else 0}分**",
+                    "btnOrientation": "0",
+                    "singleTitle": "查看评审结果",
+                    "singleURL": jump_url
+                }
+            }
+            headers = {
+                "Content-Type": "application/json",
+                "Charset": "UTF-8"
+            }
+            response = requests.post(url=post_url, data=json.dumps(action_card), headers=headers)
+            response_data = response.json()
+            if response_data.get('errmsg') == 'ok':
+                logger.info(f"钉钉ActionCard卡片发送成功! jump_url:{jump_url}")
+            else:
+                logger.error(f"钉钉ActionCard卡片发送失败! errmsg:{response_data.get('errmsg')}")
+        except Exception as e:
+            logger.error(f"钉钉ActionCard卡片发送异常: ", e)

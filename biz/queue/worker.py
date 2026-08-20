@@ -118,7 +118,30 @@ def handle_push_event(webhook_data: dict, gitlab_token: str, gitlab_url: str, gi
                     additions += item['additions']
                     deletions += item['deletions']
             # 将review结果提交到Gitlab的 notes
-            handler.add_push_notes(f'Auto Review Result: \n{review_result}')
+            # handler.add_push_notes(f'Auto Review Result: \n{review_result}')
+            ok, note_web_url = handler.add_push_notes(f'Auto Review Result: \n{review_result}')
+
+            if push_review_enabled:
+                push_entity = PushReviewEntity(
+                    project_name=webhook_data['project']['name'],
+                    author=webhook_data['user_username'],
+                    branch=webhook_data.get('ref', '').replace('refs/heads/', ''),
+                    updated_at=int(datetime.now().timestamp()),
+                    commits=commits,
+                    score=score,
+                    review_result=review_result,
+                    url_slug=gitlab_url_slug,
+                    webhook_data=webhook_data,
+                    additions=additions,
+                    deletions=deletions,
+                )
+                notifier.send(
+                    entity=push_entity,
+                    note_web_url=note_web_url,
+                    project_name=push_entity.project_name,
+                    url_slug=push_entity.url_slug,
+                    webhook_data=push_entity.webhook_data
+                )
 
         event_manager['push_reviewed'].send(PushReviewEntity(
             project_name=webhook_data['project']['name'],
@@ -210,7 +233,32 @@ def handle_merge_request_event(webhook_data: dict, gitlab_token: str, gitlab_url
         review_result = _review_with_strategy(changes, commits_text, webhook_data, gitlab_url)
 
         # 将review结果提交到Gitlab的 notes
-        handler.add_merge_request_notes(f'Auto Review Result: \n{review_result}')
+        # handler.add_merge_request_notes(f'Auto Review Result: \n{review_result}')
+        ok, note_web_url = handler.add_merge_request_notes(f'Auto Review Result: \n{review_result}')
+
+        mr_entity = MergeRequestReviewEntity(
+            project_name=webhook_data['project']['name'],
+            author=webhook_data['user']['username'],
+            source_branch=webhook_data['object_attributes']['source_branch'],
+            target_branch=webhook_data['object_attributes']['target_branch'],
+            updated_at=int(datetime.now().timestamp()),
+            commits=commits,
+            score=CodeReviewer.parse_review_score(review_text=review_result),
+            url=webhook_data['object_attributes']['url'],
+            review_result=review_result,
+            url_slug=gitlab_url_slug,
+            webhook_data=webhook_data,
+            additions=additions,
+            deletions=deletions,
+            last_commit_id=last_commit_id,
+        )
+        notifier.send(
+            entity=mr_entity,
+            note_web_url=note_web_url,
+            project_name=mr_entity.project_name,
+            url_slug=mr_entity.url_slug,
+            webhook_data=mr_entity.webhook_data
+        )
 
         # dispatch merge_request_reviewed event
         event_manager['merge_request_reviewed'].send(

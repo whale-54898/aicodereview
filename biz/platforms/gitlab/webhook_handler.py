@@ -5,8 +5,32 @@ from urllib.parse import urljoin
 import fnmatch
 import requests
 
+from urllib.parse import quote
 from biz.utils.log import logger
 
+from urllib.parse import quote
+
+
+def get_safe_headers(headers: dict) -> dict:
+    """
+    对 headers 中的所有 value 进行 latin-1 安全编码处理，避免中文或非 latin-1 字符导致 encode 崩溃
+    """
+    if not headers:
+        return headers
+
+    safe_headers = {}
+    for k, v in headers.items():
+        if isinstance(v, str):
+            # 检查是否包含非 latin-1 字符（如中文），若有则用 quote 转码
+            try:
+                v.encode('latin-1')
+                safe_headers[k] = v
+            except UnicodeEncodeError:
+                safe_headers[k] = quote(v, safe='')
+        else:
+            safe_headers[k] = v
+
+    return safe_headers
 
 def filter_changes(changes: list):
     '''
@@ -89,7 +113,7 @@ class MergeRequestHandler:
             headers = {
                 'Private-Token': self.gitlab_token
             }
-            response = requests.get(url, headers=headers, verify=False)
+            response = requests.get(url, headers=get_safe_headers(headers), verify=False)
             logger.debug(
                 f"Get changes response from GitLab (attempt {attempt + 1}): {response.status_code}, {response.text}, URL: {url}")
 
@@ -120,7 +144,7 @@ class MergeRequestHandler:
         headers = {
             'Private-Token': self.gitlab_token
         }
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=get_safe_headers(headers), verify=False)
         logger.debug(f"Get commits response from gitlab: {response.status_code}, {response.text}")
         # 检查请求是否成功
         if response.status_code == 200:
@@ -139,13 +163,16 @@ class MergeRequestHandler:
         data = {
             'body': review_result
         }
-        response = requests.post(url, headers=headers, json=data, verify=False)
+        response = requests.post(url, headers=get_safe_headers(headers), json=data, verify=False)
         logger.debug(f"Add notes to gitlab {url}: {response.status_code}, {response.text}")
         if response.status_code == 201:
             logger.info("Note successfully added to merge request.")
+            note = response.json()
+            return True, note["web_url"]
         else:
             logger.error(f"Failed to add note: {response.status_code}")
             logger.error(response.text)
+            return False, None
 
     def target_branch_protected(self) -> bool:
         url = urljoin(f"{self.gitlab_url}/",
@@ -154,7 +181,7 @@ class MergeRequestHandler:
             'Private-Token': self.gitlab_token,
             'Content-Type': 'application/json'
         }
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=get_safe_headers(headers), verify=False)
         logger.debug(f"Get protected branches response from gitlab: {response.status_code}, {response.text}")
         # 检查请求是否成功
         if response.status_code == 200:
@@ -232,13 +259,16 @@ class PushHandler:
         data = {
             'note': message
         }
-        response = requests.post(url, headers=headers, json=data, verify=False)
+        response = requests.post(url, headers=get_safe_headers(headers), json=data, verify=False)
         logger.debug(f"Add comment to commit {last_commit_id}: {response.status_code}, {response.text}")
         if response.status_code == 201:
             logger.info("Comment successfully added to push commit.")
+            note = response.json()
+            return True, note["web_url"]
         else:
             logger.error(f"Failed to add comment: {response.status_code}")
             logger.error(response.text)
+            return False, None
 
     def __repository_commits(self, ref_name: str = "", since: str = "", until: str = "", pre_page: int = 100,
                              page: int = 1):
@@ -247,7 +277,7 @@ class PushHandler:
         headers = {
             'Private-Token': self.gitlab_token
         }
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=get_safe_headers(headers), verify=False)
         logger.debug(
             f"Get commits response from GitLab for repository_commits: {response.status_code}, {response.text}, URL: {url}")
 
@@ -264,7 +294,7 @@ class PushHandler:
         headers = {
             'Private-Token': self.gitlab_token
         }
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=get_safe_headers(headers), verify=False)
         logger.debug(
             f"Get changes response from GitLab for repository_compare: {response.status_code}, {response.text}, URL: {url}")
 
@@ -281,7 +311,7 @@ class PushHandler:
         headers = {
             'Private-Token': self.gitlab_token
         }
-        response = requests.get(url, headers=headers, verify=False)
+        response = requests.get(url, headers=get_safe_headers(headers), verify=False)
         logger.debug(
             f"Get commit diff response from GitLab: {response.status_code}, {response.text}, URL: {url}")
 
