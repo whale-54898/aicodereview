@@ -135,13 +135,6 @@ def handle_push_event(webhook_data: dict, gitlab_token: str, gitlab_url: str, gi
                     additions=additions,
                     deletions=deletions,
                 )
-                notifier.send(
-                    entity=push_entity,
-                    note_web_url=note_web_url,
-                    project_name=push_entity.project_name,
-                    url_slug=push_entity.url_slug,
-                    webhook_data=push_entity.webhook_data
-                )
 
         event_manager['push_reviewed'].send(PushReviewEntity(
             project_name=webhook_data['project']['name'],
@@ -251,13 +244,6 @@ def handle_merge_request_event(webhook_data: dict, gitlab_token: str, gitlab_url
             additions=additions,
             deletions=deletions,
             last_commit_id=last_commit_id,
-        )
-        notifier.send(
-            entity=mr_entity,
-            note_web_url=note_web_url,
-            project_name=mr_entity.project_name,
-            url_slug=mr_entity.url_slug,
-            webhook_data=mr_entity.webhook_data
         )
 
         # dispatch merge_request_reviewed event
