@@ -247,7 +247,12 @@ class PushHandler:
         if response.status_code == 201:
             logger.info("Comment successfully added to push commit.")
             note = response.json()
-            return True, note["web_url"]
+            # 优先取接口返回的web_url，取不到则手动拼接
+            note_web_url = note.get("web_url")
+            if not note_web_url:
+                comment_id = note["id"]
+                note_web_url = urljoin(f"{self.gitlab_url}/", f"-/commit/{last_commit_id}#note_{comment_id}")
+            return True, note_web_url
         else:
             logger.error(f"Failed to add comment: {response.status_code}")
             logger.error(response.text)
